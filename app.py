@@ -21,6 +21,7 @@ def carregar_dados_integrados():
     df_final = pd.merge(df_inpe_mensal, df_sus, on='Data_Processamento', how='left')
     df_final = df_final[df_final['Data_Processamento'] >= '2022-01-01']
     
+    # Criando meses futuros APENAS para desenhar a área vermelha no gráfico
     datas_futuras = pd.date_range(start="2026-10-01", end="2027-04-01", freq="MS")
     df_futuro = pd.DataFrame({'Data_Processamento': datas_futuras})
     df_final = pd.concat([df_final, df_futuro], ignore_index=True)
@@ -38,25 +39,25 @@ figura.add_trace(go.Scatter(x=dados['Data_Processamento'], y=dados['Urgencias_SU
 # Zona de Alerta
 figura.add_vrect(x0="2026-12-01", x1="2027-03-31", fillcolor="red", opacity=0.20, line_width=1, line_dash="dot", line_color="darkred")
 
-# Ajustes de Layout do Gráfico
+# ==========================================
+# TRAVA CONTRA ZOOM NO CELULAR (dragmode=False)
+# ==========================================
 figura.update_layout(
     title_text="<b>Correlação Histórica e Projeção do Impacto do Ar Particulado</b>",
     hovermode="x unified",
     plot_bgcolor='rgb(250,250,250)',
     height=500, 
     legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
-    margin=dict(l=40, r=40, t=80, b=40)
+    margin=dict(l=40, r=40, t=80, b=40),
+    dragmode=False # Desativa arrastar a tela no gráfico
 )
 
-figura.update_xaxes(title_text="", showgrid=True, gridcolor='lightgray', tickfont=dict(color='black', family='Arial Black'))
-figura.update_yaxes(title_text="<b>Focos de Calor</b>", secondary_y=False, showgrid=False, tickfont=dict(color='black', family='Arial Black'))
-figura.update_yaxes(title_text="<b>Atendimentos Médicos</b>", secondary_y=True, showgrid=True, gridcolor='lightgray', tickfont=dict(color='black', family='Arial Black'))
+# Trava (fixedrange=True) em cada um dos eixos
+figura.update_xaxes(title_text="", showgrid=True, gridcolor='lightgray', tickfont=dict(color='black', family='Arial Black'), fixedrange=True)
+figura.update_yaxes(title_text="<b>Focos de Calor</b>", secondary_y=False, showgrid=False, tickfont=dict(color='black', family='Arial Black'), fixedrange=True)
+figura.update_yaxes(title_text="<b>Atendimentos Médicos</b>", secondary_y=True, showgrid=True, gridcolor='lightgray', tickfont=dict(color='black', family='Arial Black'), fixedrange=True)
 
-# ==========================================
-# SOLUÇÃO PARA O CELULAR: TRAVAR O ZOOM
-# ==========================================
-# config={'fixedrange': True} impede que a tela dê zoom no celular ao tocar no gráfico.
-st.plotly_chart(figura, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
+st.plotly_chart(figura, use_container_width=True, config={'displayModeBar': False})
 
 # ==========================================
 # MATERIAL SUPLEMENTAR E METODOLOGIA
@@ -84,10 +85,16 @@ with col2:
     * **Dado Extraído:** Soma mensal absoluta de focos de calor.
     """)
 
-# A Tabela fica escondida aqui dentro para não ocupar espaço na tela do celular
 with st.expander("📊 Clique aqui para visualizar a Tabela de Dados Integrados (INPE x SUS)"):
-    # Renomeando as colunas apenas para exibição ficar bonita
+    # Prepara a tabela para exibição
     tabela_bonita = dados.copy()
     tabela_bonita.columns = ['Mês/Ano', 'Focos de Calor (INPE)', 'Atendimentos Médicos (SUS)']
     tabela_bonita['Mês/Ano'] = tabela_bonita['Mês/Ano'].dt.strftime('%m/%Y')
+    
+    # SOLUÇÃO DOS "NONE":
+    # 1. Exclui da tabela os meses futuros (onde tanto INPE quanto SUS estão vazios)
+    tabela_bonita = tabela_bonita.dropna(how='all', subset=['Focos de Calor (INPE)', 'Atendimentos Médicos (SUS)'])
+    # 2. Nos meses recentes (ex: atraso de 1 mês do SUS), troca o None por um traço '-'
+    tabela_bonita = tabela_bonita.fillna('-')
+    
     st.dataframe(tabela_bonita, use_container_width=True, hide_index=True)
